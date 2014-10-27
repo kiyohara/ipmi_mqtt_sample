@@ -12,4 +12,4 @@ RUN cd /tmp/ipmi_mqtt_sample; rake build
 RUN gem install --no-ri --no-rdoc /tmp/ipmi_mqtt_sample/pkg/ipmi_mqtt_sample-*.gem
 RUN rm -rf /tmp/ipmi_mqtt_sample
 
-CMD [ ipmi_mqtt_sample ]
+CMD [ "/usr/local/bin/ipmi_mqtt_sample" ]
