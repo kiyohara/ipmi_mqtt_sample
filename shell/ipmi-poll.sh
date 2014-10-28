@@ -17,8 +17,9 @@ EXEC_ARGS="-h $IPMI_TARGET"
 EXEC_ARGS="$EXEC_ARGS --comma-separated-output"
 
 while true; do
-  STR_DATE=`date +%Y%m%d-%H%M%S-%N`
-  OUTPUT_FILE=$OUTPUT_DIR/$EXEC_CMD-$STR_DATE
+  # FILE_POSTFIX=`date +%Y%m%d-%H%M%S-%N`
+  FILE_POSTFIX=`date +%s` # unixtime
+  OUTPUT_FILE=$OUTPUT_DIR/$EXEC_CMD-$FILE_POSTFIX
 
   $EXEC_CMD $EXEC_ARGS > $OUTPUT_FILE
 
