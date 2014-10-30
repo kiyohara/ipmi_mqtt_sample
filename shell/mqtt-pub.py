@@ -20,15 +20,17 @@ def on_connect(client, obj, rc):
 
 
 def on_message(client, obj, mesg):
-    print("mesg: {0} {1} {2}".format(mesg.topic,
-                                     str(mesg.qos),
-                                     str(mesg.payload)))
-    sys.stdout.flush()
+    if not DEBUG():
+        print("mesg: {0} {1} {2}".format(mesg.topic,
+                                         str(mesg.qos),
+                                         str(mesg.payload)))
+        sys.stdout.flush()
 
 
 def on_publish(client, obj, mid):
-    print("Published mid: {0}".format(str(mid)))
-    sys.stdout.flush()
+    if not DEBUG():
+        print("Published mid: {0}".format(str(mid)))
+        sys.stdout.flush()
 
 
 def mqtt_pub(mqtt, topic, data):
