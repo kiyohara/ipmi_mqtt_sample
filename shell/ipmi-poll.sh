@@ -12,16 +12,22 @@ fi
 EXEC_ARGS="-h $IPMI_TARGET"
 [ -n "$IPMI_USER" ] && EXEC_ARGS="$EXEC_ARGS -u $IPMI_USER"
 [ -n "$IPMI_PASS" ] && EXEC_ARGS="$EXEC_ARGS -p $IPMI_PASS"
+[ -n "$IPMI_SENSOR_TYPES" ] && EXEC_ARGS="$EXEC_ARGS --sensor-types=$IPMI_SENSOR_TYPES"
 
 # EXEC_ARGS="$EXEC_ARGS --no-header-output --comma-separated-output"
 EXEC_ARGS="$EXEC_ARGS --comma-separated-output"
 
 while true; do
   # FILE_POSTFIX=`date +%Y%m%d-%H%M%S-%N`
-  FILE_POSTFIX=`date +%s` # unixtime
+  UNIX_TIME=`date +%s.%N` # unixtime w/ nano
+  FILE_POSTFIX=$UNIX_TIME
   OUTPUT_FILE=$OUTPUT_DIR/$EXEC_CMD-$FILE_POSTFIX
+  TEMP_FILE=`mktemp`
 
-  $EXEC_CMD $EXEC_ARGS > $OUTPUT_FILE
+  echo $UNIX_TIME > $TEMP_FILE
+  echo $IPMI_TARGET >> $TEMP_FILE
+  $EXEC_CMD $EXEC_ARGS >> $TEMP_FILE
+  mv $TEMP_FILE $OUTPUT_FILE
 
   sleep 1
 done
