@@ -42,7 +42,7 @@ def mqtt_pub(mqtt, topic, data):
         message['topic'] = topic
         print(json.dumps(message))
     else:
-        mqtt.publish(topic, message, qos=0)
+        mqtt.publish(topic, json.dumps(message), qos=0)
 
 
 def mqtt_pub_all(mqtt, ipmi_entries):
