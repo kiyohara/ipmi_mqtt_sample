@@ -53,7 +53,7 @@ def mqtt_pub_all(mqtt, ipmi_entries):
 
 def mqtt_pub_split(mqtt, ipmi_entries):
     for entry in ipmi_entries:
-        target_ipaddr = entry['target_ipaddr']
+        target_ipaddr = entry['target_ipaddr'].replace('.', '_')
         capture_time = entry['capture_time']
 
         for i in entry['ipmi_data']:
