@@ -27,7 +27,7 @@ while true; do
   echo $UNIX_TIME > $TEMP_FILE
   echo $IPMI_TARGET >> $TEMP_FILE
   $EXEC_CMD $EXEC_ARGS >> $TEMP_FILE
-  if $?; then
+  if [ $? -eq 0 ]; then
     mv $TEMP_FILE $OUTPUT_FILE
   else
     mv $TEMP_FILE _err_${OUTPUT_FILE}
