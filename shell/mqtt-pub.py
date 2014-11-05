@@ -22,7 +22,7 @@ def on_connect(client, obj, rc):
 
 
 def on_message(client, obj, mesg):
-    if not DEBUG():
+    if DEBUG():
         print("mesg: {0} {1} {2}".format(mesg.topic,
                                          str(mesg.qos),
                                          str(mesg.payload)))
@@ -30,7 +30,7 @@ def on_message(client, obj, mesg):
 
 
 def on_publish(client, obj, mid):
-    if not DEBUG():
+    if DEBUG():
         print("Published mid: {0}".format(str(mid)))
         sys.stdout.flush()
 
