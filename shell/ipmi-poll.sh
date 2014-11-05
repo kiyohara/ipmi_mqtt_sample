@@ -30,7 +30,9 @@ while true; do
   if [ $? -eq 0 ]; then
     mv $TEMP_FILE $OUTPUT_FILE
   else
-    mv $TEMP_FILE _err_${OUTPUT_FILE}
+    _DIR_NAME=`dirname $OUTPUT_FILE`
+    _BASE_NAME=`basename $OUTPUT_FILE`
+    mv $TEMP_FILE ${_DIR_NAME}/_err_${_BASE_NAME}
   fi
 
   sleep 1
