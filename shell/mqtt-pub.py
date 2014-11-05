@@ -34,7 +34,8 @@ def on_publish(client, obj, mid):
 
 
 def mqtt_pub(mqtt, topic, data):
-    publish_time = time.time()
+    # publish_time = time.time()
+    publish_time = int(time.time())  # 小数点以下切捨(暫定仕様)
 
     message = {}
     message['publish_time'] = publish_time
@@ -86,7 +87,8 @@ def ipmi_file_parser(ipmi_file):
         reader = csv.reader(csvfile)
 
         result_data = {}
-        result_data['capture_time'] = next(reader).pop()
+        # result_data['capture_time'] = next(reader).pop()
+        result_data['capture_time'] = int(next(reader).pop())  # 小数点以下切捨(暫定仕様)
         result_data['target_ipaddr'] = next(reader).pop()
 
         header = next(reader)
