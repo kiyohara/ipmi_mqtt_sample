@@ -90,7 +90,9 @@ def ipmi_file_parser(ipmi_file):
 
         result_data = {}
         # result_data['capture_time'] = next(reader).pop()
-        result_data['capture_time'] = int(next(reader).pop())  # 小数点以下切捨(暫定仕様)
+        result_data['capture_time'] = int(
+            float(next(reader).pop())
+        )  # 小数点以下切捨(暫定仕様)
         result_data['target_ipaddr'] = next(reader).pop()
 
         header = next(reader)
