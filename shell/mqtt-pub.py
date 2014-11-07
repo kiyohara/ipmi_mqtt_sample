@@ -12,27 +12,81 @@ import json
 import paho.mqtt.client as paho
 
 
-def DEBUG():
+#####
+
+
+def is_debug():
     return (int(os.environ.get('DEBUG') or "0") > 0)
 
 
+def is_disable_pub():
+    return (int(os.environ.get('DISABLE_PUB') or "0") > 0)
+
+
+def is_disable_loop():
+    return (int(os.environ.get('DISABLE_LOOP') or "0") > 0)
+
+
+def msg_log(msg):
+    out = sys.stdout
+    out.write("Log: {0}\n".format(msg))
+    out.flush()
+
+
+def msg_err(msg):
+    out = sys.stderr
+    out.write("Error: {0}\n".format(msg))
+    out.flush()
+
+
+def msg_debug(msg):
+    if is_debug():
+        out = sys.stdout
+        out.write("Debug: {0}\n".format(msg))
+        out.flush()
+
+
+#####
+
+
 def on_connect(client, obj, rc):
-    print("connection result: {0}".format(str(rc)))
-    sys.stdout.flush()
+    #
+    # result code:
+    # https://pypi.python.org/pypi/paho-mqtt#connect-reconnect-disconnect
+    #
+    # 0: Connection successful
+    # 1: Connection refused - incorrect protocol version
+    # 2: Connection refused - invalid client identifier
+    # 3: Connection refused - server unavailable
+    # 4: Connection refused - bad username or password
+    # 5: Connection refused - not authorised
+    # 6-255: Currently unused.
+    msg_log("Connection result: {0}".format(str(rc)))
 
 
-def on_message(client, obj, mesg):
-    if DEBUG():
-        print("mesg: {0} {1} {2}".format(mesg.topic,
-                                         str(mesg.qos),
-                                         str(mesg.payload)))
-        sys.stdout.flush()
+def on_disconnect(client, obj, rc):
+    #
+    # result code:
+    # https://pypi.python.org/pypi/paho-mqtt#callbacks
+    #
+    # If MQTT_ERR_SUCCESS (0), the callback was called in response to a
+    # disconnect() call. If any other value the disconnection was unexpected,
+    # such as might be caused by a network error.
+    #
+    if rc == 0:  # 正常切断時は NOP
+        return
+
+    msg_err("Unexpected disconnect: {0}".format(str(rc)))
+
+
+def on_message(client, obj, msg):
+    msg_debug("msg: {0} {1} {2}".format(msg.topic,
+                                        str(msg.qos),
+                                        str(msg.payload)))
 
 
 def on_publish(client, obj, mid):
-    if DEBUG():
-        print("Published mid: {0}".format(str(mid)))
-        sys.stdout.flush()
+    msg_debug("published mid: {0}".format(str(mid)))
 
 
 def mqtt_pub(mqtt, topic, data):
@@ -43,18 +97,32 @@ def mqtt_pub(mqtt, topic, data):
     message['publish_time'] = publish_time
     message['publish_data'] = data
 
-    if DEBUG():
-        message['topic'] = topic
-        print(json.dumps(message))
+    msg_debug("publish topic: {0}".format(topic))
+    msg_debug("publish msg: {0}".format(json.dumps(message)))
+
+    #
+    # result code:
+    # https://pypi.python.org/pypi/paho-mqtt#publishing
+    #
+    # Returns a tuple (result, mid), where result is MQTT_ERR_SUCCESS to
+    # indicate success or MQTT_ERR_NO_CONN if the client is not currently
+    # connected. mid is the message ID for the publish request.
+    #
+    (res, mid) = mqtt.publish(topic, json.dumps(message), qos=0)
+    if res == paho.MQTT_ERR_SUCCESS:
+        return True
     else:
-        mqtt.publish(topic, json.dumps(message), qos=0)
+        msg_debug("Publish: error: code({0})".format(str(res)))
+
+        return False
 
 
 def mqtt_pub_all(mqtt, ipmi_entries):
-    mqtt_pub(mqtt, '/all', ipmi_entries)
+    return mqtt_pub(mqtt, '/all', ipmi_entries)
 
 
 def mqtt_pub_split(mqtt, ipmi_entries):
+    func_res = True
     for entry in ipmi_entries:
         target_ipaddr = entry['target_ipaddr'].replace('.', '_')
         capture_time = entry['capture_time']
@@ -70,7 +138,11 @@ def mqtt_pub_split(mqtt, ipmi_entries):
             data['capture_time'] = capture_time
             data['ipmi_data'] = i
 
-            mqtt_pub(mqtt, topic, data)
+            pub_res = mqtt_pub(mqtt, topic, data)
+
+            func_res = func_res and pub_res
+
+    return func_res
 
 
 def filename_to_datetime(file_name):
@@ -112,9 +184,7 @@ def ipmi_file_parser(ipmi_file):
     return result_data
 
 
-def ipmi_files_handler(mqtt, prev_index):
-    last_index = prev_index
-
+def ipmi_files_handler(mqtt):
     if os.path.exists('./tmp/'):
         ipmi_files = glob.glob('./tmp/ipmi-sensors-*')
     else:
@@ -122,47 +192,42 @@ def ipmi_files_handler(mqtt, prev_index):
 
     ipmi_entries = []
     for ipmi_file in ipmi_files:
-        target_index = filename_to_unixtime(ipmi_file)
-        if target_index > prev_index:
-            ipmi_entries.append(ipmi_file_parser(ipmi_file))
-            last_index = target_index
+        ipmi_entries.append(ipmi_file_parser(ipmi_file))
 
-    # mqtt_pub_all(mqtt, ipmi_entries)
-    mqtt_pub_split(mqtt, ipmi_entries)
+        # pub_res = mqtt_pub_all(mqtt, ipmi_entries)
+        pub_res = mqtt_pub_split(mqtt, ipmi_entries)
 
-    for ipmi_file in ipmi_files:
-        if not DEBUG():
-            os.remove(ipmi_file)
-
-    return last_index
+        if not pub_res:
+            msg_err("Publish: error: file: {0}".format(ipmi_file))
+            next
+        else:
+            if not is_debug():
+                os.remove(ipmi_file)
 
 
 def main():
     mqtt_server_addr = os.environ.get('MQTT_SERVER_ADDR') or "127.0.0.1"
-    disable_loop = DEBUG() or (int(os.environ.get('DISABLE_LOOP') or "0") > 0)
 
     mqtt = paho.Client()
-    mqtt.on_message = on_message
     mqtt.on_connect = on_connect
+    mqtt.on_disconnect = on_disconnect
+    mqtt.on_message = on_message
     mqtt.on_publish = on_publish
 
     try:
-        if DEBUG():
-            sys.stderr.write("DEBUG MODE: skip connect MQTT\n")
-            sys.stderr.flush()
+        if is_disable_pub():
+            msg_log("Skip connecting to MQTT server")
         else:
+            msg_log("Connecting to MQTT server({0})".format(mqtt_server_addr))
             mqtt.connect(mqtt_server_addr, 1883, 60)
     except:
-        sys.stderr.write("MQTT server: connection refused\n")
-        sys.stderr.flush()
+        msg_err("MQTT server: connection refused")
         return 1
 
-    last_index = 0
-
     while True:
-        last_index = ipmi_files_handler(mqtt, last_index)
+        ipmi_files_handler(mqtt)
 
-        if disable_loop:
+        if is_disable_loop():
             break
 
         time.sleep(1)
