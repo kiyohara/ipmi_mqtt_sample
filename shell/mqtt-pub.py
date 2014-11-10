@@ -5,12 +5,23 @@ import sys
 import glob
 import datetime
 import time
+import math
+import random
 import re
 import csv
 import json
 
 import paho.mqtt.client as paho
 
+#####
+
+g_is_mqtt_connected = False
+
+G_RECONNECT_INTERVAL_BASE = 0.5
+G_RECONNECT_INTERVAL_MULTIPLIER = 1.5
+G_RECONNECT_RANDOMIZATION_FACTOR = 0.5
+G_RECONNECT_TRY_MAX = 16
+g_reconnect_try_count = 0
 
 #####
 
@@ -34,7 +45,8 @@ def msg_log(msg):
 
 
 def msg_err(msg):
-    out = sys.stderr
+    # out = sys.stderr
+    out = sys.stdout
     out.write("Error: {0}\n".format(msg))
     out.flush()
 
@@ -44,6 +56,53 @@ def msg_debug(msg):
         out = sys.stdout
         out.write("Debug: {0}\n".format(msg))
         out.flush()
+
+#####
+
+
+def frange(x, y, step):
+    res = []
+    while x < y:
+        res.append(x)
+        x += step
+
+    return res
+
+
+def randfrange(x, y, step):
+    return random.choice(frange(x, y, step))
+
+
+def init_reconnect():
+    global g_reconnect_try_count
+    g_reconnect_try_count = 0
+
+
+def wait_reconnect():
+    global g_reconnect_try_count
+    g_reconnect_try_count += 1
+
+    if g_reconnect_try_count > G_RECONNECT_TRY_MAX:
+        raise StandardError(
+            "Reconnect exceeded {0} try".format(str(G_RECONNECT_TRY_MAX))
+        )
+
+    g_reconnect_interval = G_RECONNECT_INTERVAL_BASE * math.pow(
+        G_RECONNECT_INTERVAL_MULTIPLIER, g_reconnect_try_count - 1
+    )
+    randomized_interval = g_reconnect_interval * (
+        randfrange(1 - G_RECONNECT_RANDOMIZATION_FACTOR,
+                   1 + G_RECONNECT_RANDOMIZATION_FACTOR,
+                   0.1)
+    )
+
+    msg_log(
+        "Wait reconnect tick: sleep {0:.3f} sec ({1} try)".format(
+            randomized_interval, g_reconnect_try_count
+        )
+    )
+
+    time.sleep(randomized_interval)
 
 
 #####
@@ -63,6 +122,10 @@ def on_connect(client, obj, rc):
     # 6-255: Currently unused.
     msg_log("Connection result: {0}".format(str(rc)))
 
+    global g_is_mqtt_connected
+    g_is_mqtt_connected = True
+    init_reconnect()
+
 
 def on_disconnect(client, obj, rc):
     #
@@ -77,6 +140,9 @@ def on_disconnect(client, obj, rc):
         return
 
     msg_err("Unexpected disconnect: {0}".format(str(rc)))
+
+    global g_is_mqtt_connected
+    g_is_mqtt_connected = False
 
 
 def on_message(client, obj, msg):
@@ -113,6 +179,9 @@ def mqtt_pub(mqtt, topic, data):
         return True
     else:
         msg_debug("Publish: error: code({0})".format(str(res)))
+
+        global g_is_mqtt_connected
+        g_is_mqtt_connected = False
 
         return False
 
@@ -206,6 +275,8 @@ def ipmi_files_handler(mqtt):
 
 
 def main():
+    global g_is_mqtt_connected
+
     mqtt_server_addr = os.environ.get('MQTT_SERVER_ADDR') or "127.0.0.1"
 
     mqtt = paho.Client()
@@ -214,22 +285,31 @@ def main():
     mqtt.on_message = on_message
     mqtt.on_publish = on_publish
 
-    try:
+    while True:
         if is_disable_pub():
             msg_log("Skip connecting to MQTT server")
-        else:
+        elif not g_is_mqtt_connected:
             msg_log("Connecting to MQTT server({0})".format(mqtt_server_addr))
-            mqtt.connect(mqtt_server_addr, 1883, 60)
-    except:
-        msg_err("MQTT server: connection refused")
-        return 1
+            try:
+                mqtt.connect(mqtt_server_addr, 1883, 60)
+            except:
+                msg_log("MQTT server: connection refused")
 
-    while True:
-        ipmi_files_handler(mqtt)
+        while mqtt.loop() == 0:
+            if g_is_mqtt_connected:
+                ipmi_files_handler(mqtt)
+            else:
+                msg_debug("No MQTT connection")
 
-        if is_disable_loop():
+            if is_disable_loop():
+                break
+
+            time.sleep(1)
+
+        try:
+            wait_reconnect()
+        except StandardError as (message):
+            msg_err(message)
             break
-
-        time.sleep(1)
 
 main()
