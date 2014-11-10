@@ -308,8 +308,8 @@ def main():
 
         try:
             wait_reconnect()
-        except StandardError as (message):
-            msg_err(message)
+        except StandardError as e:
+            msg_err("{0}".format(e))
             break
 
 main()
