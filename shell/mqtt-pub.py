@@ -254,10 +254,10 @@ def ipmi_file_parser(ipmi_file):
 
 
 def ipmi_files_handler(mqtt):
-    if os.path.exists('./tmp/'):
-        ipmi_files = glob.glob('./tmp/ipmi-sensors-*')
+    if os.path.exists('./tmp/ipmi-poll'):
+        ipmi_files = glob.glob('./tmp/ipmi-poll/ipmi-sensors-*')
     else:
-        ipmi_files = glob.glob('/tmp/ipmi-sensors-*')
+        ipmi_files = glob.glob('/tmp/ipmi-poll/ipmi-sensors-*')
 
     ipmi_entries = []
     for ipmi_file in ipmi_files:
