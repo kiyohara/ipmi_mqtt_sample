@@ -73,6 +73,27 @@ def randfrange(x, y, step):
     return random.choice(frange(x, y, step))
 
 
+def connect(mqtt, mqtt_server_addr):
+    global g_is_mqtt_connected
+
+    msg_log("Connecting to MQTT server({0})".format(mqtt_server_addr))
+
+    if is_disable_pub():
+        msg_log("DISABLE_PUB: Skip connecting to MQTT server")
+        return
+
+    if g_is_mqtt_connected:
+        msg_debug(
+            "MQTT server({0}) already connected".format(mqtt_server_addr)
+        )
+        return
+
+    try:
+        mqtt.connect(mqtt_server_addr, 1883, 60)
+    except:
+        msg_log("MQTT server: connection refused")
+
+
 def init_reconnect():
     global g_reconnect_try_count
     g_reconnect_try_count = 0
@@ -81,6 +102,10 @@ def init_reconnect():
 def wait_reconnect():
     global g_reconnect_try_count
     g_reconnect_try_count += 1
+
+    if is_disable_pub():
+        msg_log("DISABLE_PUB: Skip re-connecting to MQTT server")
+        return
 
     if g_reconnect_try_count > G_RECONNECT_TRY_MAX:
         raise StandardError(
@@ -254,13 +279,18 @@ def ipmi_file_parser(ipmi_file):
 
 
 def ipmi_files_handler(mqtt):
+    search_dir = '/tmp/ipmi-poll'
     if os.path.exists('./tmp/ipmi-poll'):
-        ipmi_files = glob.glob('./tmp/ipmi-poll/ipmi-sensors-*')
-    else:
-        ipmi_files = glob.glob('/tmp/ipmi-poll/ipmi-sensors-*')
+        search_dir = './tmp/ipmi-poll'
 
-    ipmi_entries = []
+    search_files = "{0}/ipmi-sensors-*".format(search_dir)
+    msg_debug("ipmi_files_handler: search: {0}".format(search_files))
+    ipmi_files = glob.glob(search_files)
+
     for ipmi_file in ipmi_files:
+        msg_debug("ipmi_files_handler: handling: file: {0}".format(ipmi_file))
+
+        ipmi_entries = []
         ipmi_entries.append(ipmi_file_parser(ipmi_file))
 
         # pub_res = mqtt_pub_all(mqtt, ipmi_entries)
@@ -270,7 +300,12 @@ def ipmi_files_handler(mqtt):
             msg_err("Publish: error: file: {0}".format(ipmi_file))
             next
         else:
-            if not is_debug():
+            msg_debug(
+                "ipmi_files_handler: remove: file: {0}".format(ipmi_file)
+            )
+            if is_debug():
+                msg_debug("DEBUG: skip remove {0}".format(ipmi_file))
+            else:
                 os.remove(ipmi_file)
 
 
@@ -286,25 +321,22 @@ def main():
     mqtt.on_publish = on_publish
 
     while True:
-        if is_disable_pub():
-            msg_log("Skip connecting to MQTT server")
-        elif not g_is_mqtt_connected:
-            msg_log("Connecting to MQTT server({0})".format(mqtt_server_addr))
-            try:
-                mqtt.connect(mqtt_server_addr, 1883, 60)
-            except:
-                msg_log("MQTT server: connection refused")
+        connect(mqtt, mqtt_server_addr)
 
         while mqtt.loop() == 0:
             if g_is_mqtt_connected:
                 ipmi_files_handler(mqtt)
-            else:
-                msg_debug("No MQTT connection")
 
-            if is_disable_loop():
-                break
+                if is_disable_loop():
+                    msg_log("DISABLE_LOOP: break loop")
+                    break
+            else:
+                msg_debug("No MQTT connection, yet")
 
             time.sleep(1)
+
+        if is_disable_loop():
+            break
 
         try:
             wait_reconnect()
