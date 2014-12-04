@@ -108,7 +108,7 @@ def wait_reconnect():
         return
 
     if g_reconnect_try_count > G_RECONNECT_TRY_MAX:
-        raise StandardError(
+        raise Exception(
             "Reconnect exceeded {0} try".format(str(G_RECONNECT_TRY_MAX))
         )
 
@@ -340,7 +340,7 @@ def main():
 
         try:
             wait_reconnect()
-        except StandardError as e:
+        except Exception as e:
             msg_err("{0}".format(e))
             break
 
