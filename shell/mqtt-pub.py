@@ -250,11 +250,12 @@ def filename_to_unixtime(file_name):
     return float(utime)
 
 
-def ipmi_file_parser(ipmi_file):
+def ipmi_sensors_file_parser(ipmi_file):
+    result_data = {}
+
     with open(ipmi_file, 'r') as csvfile:
         reader = csv.reader(csvfile)
 
-        result_data = {}
         result_data['capture_time'] = float(next(reader).pop())  # 小数点を含む(暫定仕様)
         # result_data['capture_time'] = int(
         #     float(next(reader).pop())
@@ -278,20 +279,60 @@ def ipmi_file_parser(ipmi_file):
     return result_data
 
 
+def ipmi_chassis_file_parser(ipmi_file):
+    result_data = {}
+
+    with open(ipmi_file, 'r') as chassis_file:
+        result_data['capture_time'] = float(chassis_file.readline())  # 小数点を含む(暫定仕様)
+        # result_data['capture_time'] = int(
+        #     float(chassis_file.readline())
+        # )  # 小数点以下切捨(暫定仕様)
+        result_data['target_ipaddr'] = chassis_file.readline().strip()
+
+        ipmi_entry = {}
+        ipmi_entries = []
+        line = chassis_file.readline()
+        while line:
+            cols = line.split(':')
+            if len(cols) == 2:
+                label = cols[0].strip()
+                value = cols[1].strip()
+
+                ipmi_entry['Name'] = label
+                ipmi_entry['Reading'] = value
+                ipmi_entry['Type'] = 'Chassis'
+
+                ipmi_entries.append(ipmi_entry)
+                ipmi_entry = {}
+
+            line = chassis_file.readline()
+
+        result_data['ipmi_data'] = ipmi_entries
+
+    return result_data
+
+
 def ipmi_files_handler(mqtt):
     search_dir = '/tmp/ipmi-poll'
     if os.path.exists('./tmp/ipmi-poll'):
         search_dir = './tmp/ipmi-poll'
 
-    search_files = "{0}/ipmi-sensors-*".format(search_dir)
+    search_files = "{0}/ipmi-*".format(search_dir)
     msg_debug("ipmi_files_handler: search: {0}".format(search_files))
     ipmi_files = glob.glob(search_files)
 
     for ipmi_file in ipmi_files:
-        msg_debug("ipmi_files_handler: handling: file: {0}".format(ipmi_file))
-
         ipmi_entries = []
-        ipmi_entries.append(ipmi_file_parser(ipmi_file))
+
+        ipmi_file_name = os.path.basename(ipmi_file)
+        if re.match(r"^ipmi-sensors-*", ipmi_file_name):
+            msg_debug("ipmi_files_handler: handling sensors file: {0}".format(ipmi_file_name))
+            ipmi_entries.append(ipmi_sensors_file_parser(ipmi_file))
+        elif re.match(r"^ipmi-chassis-*", ipmi_file_name):
+            msg_debug("ipmi_files_handler: handling chassis file: {0}".format(ipmi_file_name))
+            ipmi_entries.append(ipmi_chassis_file_parser(ipmi_file))
+        else:
+            msg_debug("ipmi_files_handler: skip unknown file: {0}".format(ipmi_file_name))
 
         # pub_res = mqtt_pub_all(mqtt, ipmi_entries)
         pub_res = mqtt_pub_split(mqtt, ipmi_entries)

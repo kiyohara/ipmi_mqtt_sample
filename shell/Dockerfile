@@ -14,6 +14,8 @@ RUN apt-get install -y freeipmi
 RUN pip install paho-mqtt
 
 ADD ipmi-poll.sh /usr/local/bin/ipmi-poll.sh
+ADD ipmi-sensors.sh /usr/local/bin/ipmi-sensors.sh
+ADD ipmi-chassis.sh /usr/local/bin/ipmi-chassis.sh
 ADD mqtt-pub.py /usr/local/bin/mqtt-pub.py
 
 RUN rm -rf /tmp/ipmi_mqtt_sample
