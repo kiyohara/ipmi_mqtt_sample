@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.email         = ["tomokazu.kiyohara@gmail.com"]
   spec.summary       = %q{IMPI power status to MQTT broker sample}
   spec.description   = %q{IMPI power status to MQTT broker sample}
-  spec.homepage      = ""
+  spec.homepage      = "https://github.com/kiyohara/ipmi_mqtt_sample"
   spec.license       = "MIT"
 
   spec.files         = `git ls-files -z`.split("\x0")
